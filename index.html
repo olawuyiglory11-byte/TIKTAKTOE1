@@ -47,6 +47,7 @@
     #status { min-height: 1.6em; margin: 0 0 18px; color: #4b5563; }
 
     .board {
+      position: relative;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 10px;
@@ -66,6 +67,22 @@
     .cell:hover:enabled { background: #dce3f3; }
     .cell:focus-visible, .action:focus-visible { outline: 3px solid #536dfe; outline-offset: 3px; }
     .cell:disabled { cursor: default; }
+
+    #winning-line {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    #winning-line line {
+      stroke: #ef4444;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      filter: drop-shadow(0 1px 1px rgb(255 255 255 / 75%));
+    }
 
     .actions {
       display: flex;
@@ -111,6 +128,9 @@
       <button class="cell" type="button" aria-label="Row 3, column 1"></button>
       <button class="cell" type="button" aria-label="Row 3, column 2"></button>
       <button class="cell" type="button" aria-label="Row 3, column 3"></button>
+      <svg id="winning-line" viewBox="0 0 100 100" aria-hidden="true">
+        <line x1="0" y1="0" x2="0" y2="0" visibility="hidden"></line>
+      </svg>
     </div>
 
     <div class="actions">
@@ -126,6 +146,8 @@
     const resetMatch = document.querySelector('#reset-match');
     const xScore = document.querySelector('#x-score');
     const oScore = document.querySelector('#o-score');
+    const boardElement = document.querySelector('.board');
+    const winningLineElement = document.querySelector('#winning-line line');
 
     const winningLines = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -152,6 +174,27 @@
       });
     }
 
+    function showWinningLine(line) {
+      const boardRect = boardElement.getBoundingClientRect();
+      const centers = line.map(index => {
+        const cellRect = cells[index].getBoundingClientRect();
+        return {
+          x: ((cellRect.left + cellRect.width / 2 - boardRect.left) / boardRect.width) * 100,
+          y: ((cellRect.top + cellRect.height / 2 - boardRect.top) / boardRect.height) * 100
+        };
+      });
+
+      winningLineElement.setAttribute('x1', centers[0].x);
+      winningLineElement.setAttribute('y1', centers[0].y);
+      winningLineElement.setAttribute('x2', centers[2].x);
+      winningLineElement.setAttribute('y2', centers[2].y);
+      winningLineElement.setAttribute('visibility', 'visible');
+    }
+
+    function hideWinningLine() {
+      winningLineElement.setAttribute('visibility', 'hidden');
+    }
+
     function startNewRound() {
       if (matchOver) {
         status.textContent = 'Match over! Press Reset match to play again.';
@@ -161,6 +204,7 @@
       board = Array(9).fill('');
       currentPlayer = 'X';
       gameOver = false;
+      hideWinningLine();
       setBoardState();
       status.textContent = "Player X's turn";
     }
@@ -188,9 +232,10 @@
       board[index] = currentPlayer;
       setBoardState();
 
-      const hasWon = winningLines.some(line => line.every(cell => board[cell] === currentPlayer));
+      const winningLine = winningLines.find(line => line.every(cell => board[cell] === currentPlayer));
 
-      if (hasWon) {
+      if (winningLine) {
+        showWinningLine(winningLine);
         finishRound(currentPlayer);
         return;
       }
