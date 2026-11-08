@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tic-Tac-Toe</title>
+  <title>Tic-Tac-Toe Best of 3</title>
   <style>
     :root {
       color-scheme: light;
@@ -23,7 +23,7 @@
     }
 
     main {
-      width: min(100%, 420px);
+      width: min(100%, 440px);
       padding: 28px;
       border-radius: 20px;
       background: white;
@@ -31,8 +31,20 @@
       text-align: center;
     }
 
-    h1 { margin: 0 0 8px; }
-    #status { min-height: 1.5em; margin: 0 0 20px; color: #4b5563; }
+    h1 { margin: 0 0 10px; }
+    .scoreboard {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 18px;
+      background: #eef2ff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 700;
+      color: #27376b;
+    }
+
+    #status { min-height: 1.6em; margin: 0 0 18px; color: #4b5563; }
 
     .board {
       display: grid;
@@ -52,13 +64,20 @@
     }
 
     .cell:hover:enabled { background: #dce3f3; }
-    .cell:focus-visible, #restart:focus-visible { outline: 3px solid #536dfe; outline-offset: 3px; }
+    .cell:focus-visible, .action:focus-visible { outline: 3px solid #536dfe; outline-offset: 3px; }
     .cell:disabled { cursor: default; }
 
-    #restart {
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .action {
       border: 0;
       border-radius: 999px;
-      padding: 11px 20px;
+      padding: 11px 18px;
       background: #4358d8;
       color: white;
       font: inherit;
@@ -66,12 +85,21 @@
       cursor: pointer;
     }
 
-    #restart:hover { background: #3549c4; }
+    .action.secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+
+    .action:hover { filter: brightness(0.98); }
   </style>
 </head>
 <body>
   <main>
     <h1>Tic-Tac-Toe</h1>
+    <div class="scoreboard" aria-live="polite">
+      <span>Player X: <strong id="x-score">0</strong></span>
+      <span>Player O: <strong id="o-score">0</strong></span>
+    </div>
     <p id="status" aria-live="polite">Player X's turn</p>
     <div class="board" role="group" aria-label="Tic-Tac-Toe board">
       <button class="cell" type="button" aria-label="Row 1, column 1"></button>
@@ -84,13 +112,21 @@
       <button class="cell" type="button" aria-label="Row 3, column 2"></button>
       <button class="cell" type="button" aria-label="Row 3, column 3"></button>
     </div>
-    <button id="restart" type="button">New game</button>
+
+    <div class="actions">
+      <button id="next-round" class="action" type="button">Next round</button>
+      <button id="reset-match" class="action secondary" type="button">Reset match</button>
+    </div>
   </main>
 
   <script>
     const cells = [...document.querySelectorAll('.cell')];
     const status = document.querySelector('#status');
-    const restart = document.querySelector('#restart');
+    const nextRound = document.querySelector('#next-round');
+    const resetMatch = document.querySelector('#reset-match');
+    const xScore = document.querySelector('#x-score');
+    const oScore = document.querySelector('#o-score');
+
     const winningLines = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8],
       [0, 3, 6], [1, 4, 7], [2, 5, 8],
@@ -100,42 +136,90 @@
     let board = Array(9).fill('');
     let currentPlayer = 'X';
     let gameOver = false;
+    let matchOver = false;
+    let score = { X: 0, O: 0 };
 
-    function playTurn(index) {
-      if (board[index] || gameOver) return;
-
-      board[index] = currentPlayer;
-      cells[index].textContent = currentPlayer;
-      cells[index].setAttribute('aria-label', `Row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}: ${currentPlayer}`);
-
-      const hasWon = winningLines.some(line => line.every(cell => board[cell] === currentPlayer));
-      if (hasWon) {
-        status.textContent = `Player ${currentPlayer} wins!`;
-        gameOver = true;
-        cells.forEach(cell => { cell.disabled = true; });
-      } else if (board.every(Boolean)) {
-        status.textContent = "It's a draw!";
-        gameOver = true;
-      } else {
-        currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-        status.textContent = `Player ${currentPlayer}'s turn`;
-      }
+    function renderScore() {
+      xScore.textContent = score.X;
+      oScore.textContent = score.O;
     }
 
-    function startNewGame() {
-      board = Array(9).fill('');
-      currentPlayer = 'X';
-      gameOver = false;
-      status.textContent = "Player X's turn";
+    function setBoardState() {
       cells.forEach((cell, index) => {
-        cell.textContent = '';
-        cell.disabled = false;
-        cell.setAttribute('aria-label', `Row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}`);
+        cell.textContent = board[index] || '';
+        cell.disabled = !!board[index] || gameOver;
+        cell.setAttribute('aria-label', `Row ${Math.floor(index / 3) + 1}, column ${index % 3 + 1}${board[index] ? ': ' + board[index] : ''}`);
       });
     }
 
+    function startNewRound() {
+      if (matchOver) {
+        status.textContent = 'Match over! Press Reset match to play again.';
+        return;
+      }
+
+      board = Array(9).fill('');
+      currentPlayer = 'X';
+      gameOver = false;
+      setBoardState();
+      status.textContent = "Player X's turn";
+    }
+
+    function finishRound(winner) {
+      score[winner] += 1;
+      renderScore();
+
+      if (score[winner] >= 2) {
+        matchOver = true;
+        status.textContent = `Player ${winner} wins the best-of-3 match!`;
+        gameOver = true;
+        setBoardState();
+        return;
+      }
+
+      gameOver = true;
+      status.textContent = `Player ${winner} wins the round! Press Next round.`;
+      setBoardState();
+    }
+
+    function playTurn(index) {
+      if (board[index] || gameOver || matchOver) return;
+
+      board[index] = currentPlayer;
+      setBoardState();
+
+      const hasWon = winningLines.some(line => line.every(cell => board[cell] === currentPlayer));
+
+      if (hasWon) {
+        finishRound(currentPlayer);
+        return;
+      }
+
+      if (board.every(Boolean)) {
+        status.textContent = "It's a draw! Press Next round.";
+        gameOver = true;
+        setBoardState();
+        return;
+      }
+
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      status.textContent = `Player ${currentPlayer}'s turn`;
+      setBoardState();
+    }
+
+    function resetGame() {
+      score = { X: 0, O: 0 };
+      matchOver = false;
+      renderScore();
+      startNewRound();
+    }
+
     cells.forEach((cell, index) => cell.addEventListener('click', () => playTurn(index)));
-    restart.addEventListener('click', startNewGame);
+    nextRound.addEventListener('click', startNewRound);
+    resetMatch.addEventListener('click', resetGame);
+
+    renderScore();
+    setBoardState();
   </script>
 </body>
 </html>
